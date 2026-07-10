@@ -1,4 +1,4 @@
-# IconPull - Windows 11 Icon Extractor for `.exe`, `.dll`, `.mun`, `.ico`, and more
+# IconPull - Icon Extractor for `.exe`, `.dll`, `.mun`, and more
 
 IconPull is a small Windows desktop utility for extracting application and system icons from Windows resource files. It exports both the icon as embedded and as rendered by the Windows Shell, which helps when older tools cannot read modern Windows 11 resources.
 
