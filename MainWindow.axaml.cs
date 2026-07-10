@@ -57,10 +57,14 @@ public partial class MainWindow : Window
         UpdateStatus();
     }
 
-    private static string GetAppVersion() =>
-        Assembly.GetExecutingAssembly()
+    private static string GetAppVersion()
+    {
+        string version = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
             .InformationalVersion ?? "1.0.0";
+        int plus = version.IndexOf('+');
+        return plus >= 0 ? version[..plus] : version;
+    }
 
     private void FitToWorkArea()
     {
