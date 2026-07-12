@@ -5,6 +5,8 @@ IconPull is a small Windows desktop utility for extracting application and syste
 
 ## Why IconPull?
 
+I wasn't satisfied with the existing options: some felt outdated, while others were more complicated than necessary for a focused extraction task. IconPull is my attempt to address both problems with a simpler workflow and support for newer Windows resource layouts, including `.mun` files used by Windows 11.
+
 Many Windows 11 system resources are stored in `.mun` files rather than being available directly in `shell32.dll` or `imageres.dll`. When legacy tools show empty shell32.dll files in Windows 11, IconPull helps you locate icons in `C:\Windows\SystemResources` and extract them. It reads the selected source file without modifying Windows system files.
 
 ## Features
