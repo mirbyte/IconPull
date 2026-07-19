@@ -1,7 +1,11 @@
 # IconPull - Icon Extractor for `.exe`, `.dll`, `.mun`, `.ico`, and more
 
-IconPull is a small Windows desktop utility for extracting application and system icons from Windows resource files. It exports both the icon as embedded and as rendered by the Windows Shell, which helps when older tools cannot read modern Windows 11 resources.
+[![License](https://img.shields.io/github/license/mirbyte/IconPull?color=FFEBA5)](https://raw.githubusercontent.com/mirbyte/IconPull/main/LICENSE)
+![Size](https://img.shields.io/github/repo-size/mirbyte/IconPull?label=size&color=FFEBA5)
+[![Download Count](https://img.shields.io/github/downloads/mirbyte/IconPull/total?color=FFEBA5)](https://github.com/mirbyte/IconPull/releases/latest)
+[![Latest Release](https://img.shields.io/github/release/mirbyte/IconPull.svg?color=FFEBA5)](https://github.com/mirbyte/IconPull/releases/latest)
 
+IconPull is a small Windows desktop utility for extracting application and system icons from Windows resource files. It exports both the icon as embedded and as rendered by the Windows Shell, which helps when older tools cannot read modern Windows 11 resources.
 
 ## Why IconPull?
 
