@@ -61,7 +61,7 @@ public partial class MainWindow : Window
     {
         string version = Assembly.GetExecutingAssembly()
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion ?? "1.0.0";
+            .InformationalVersion ?? "1.0.1";
         int plus = version.IndexOf('+');
         return plus >= 0 ? version[..plus] : version;
     }
