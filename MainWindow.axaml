@@ -13,8 +13,8 @@
 
         <Grid Grid.Row="1" ColumnDefinitions="3*,2*">
 
-            <Grid Grid.Column="0" RowDefinitions="*,72" Margin="0,0,7,0">
-                <Border Grid.Row="0" Classes="card" Padding="16,14">
+            <Grid Grid.Column="0" RowDefinitions="Auto,*" Margin="0,0,7,0">
+                <Border Grid.Row="0" Classes="card" Padding="16,14" Height="337.7142857142857">
                     <Grid RowDefinitions="*,Auto">
                         <Border x:Name="DropZoneBorder" Grid.Row="0"
                                 Background="#f8fafc" BorderBrush="#c5d0e0" BorderThickness="2"
@@ -56,12 +56,12 @@
                     <Grid RowDefinitions="Auto,*">
                         <Button Classes="secondary" Content="Clear log" HorizontalAlignment="Right"
                                 Padding="10,4" FontSize="12" Margin="0,0,0,6" Click="OnClearLogClicked"/>
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                            <TextBox x:Name="LogTextBox" Classes="log" IsReadOnly="True"
-                                     TextWrapping="Wrap" AcceptsReturn="True"
-                                     BorderThickness="0" Background="Transparent"
-                                     FontFamily="Consolas, Cascadia Mono, monospace"/>
-                        </ScrollViewer>
+                        <TextBox x:Name="LogTextBox" Grid.Row="1" Classes="log" IsReadOnly="True"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 BorderThickness="0" Background="Transparent"
+                                 FontFamily="Consolas, Cascadia Mono, monospace"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"/>
                     </Grid>
                 </Border>
             </Grid>
