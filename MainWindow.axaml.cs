@@ -427,60 +427,18 @@ public partial class MainWindow : Window
 
                 string ext = Path.GetExtension(path).ToLowerInvariant();
                 bool isPe = SupportedFileTypes.IsPeExtension(ext);
-                byte[]? icoBytes = null;
 
-                if (isPe && (doRawIco || doRawPng))
+                void ExportGroup(string? id, byte[] bytes)
                 {
-                    try
-                    {
-                        icoBytes = WindowsIconExtractor.ExtractRawIcoFromPE(path);
-                    }
-                    catch (Exception ex)
-                    {
-                        if (doRawIco)
-                        {
-                            attempted++;
-                            Log($"  Raw ICO failed: {ex.Message}");
-                        }
+                    string name = id is null ? baseName : $"{baseName}_{id}";
 
-                        if (doRawPng)
-                        {
-                            attempted++;
-                            Log($"  Raw best PNG failed: {ex.Message}");
-                        }
-                    }
-                }
-                else if (ext == ".ico" && (doRawIco || doRawPng))
-                {
-                    try
-                    {
-                        icoBytes = File.ReadAllBytes(path);
-                    }
-                    catch (Exception ex)
-                    {
-                        if (doRawIco)
-                        {
-                            attempted++;
-                            Log($"  Raw ICO failed: {ex.Message}");
-                        }
-
-                        if (doRawPng)
-                        {
-                            attempted++;
-                            Log($"  ICO best PNG failed: {ex.Message}");
-                        }
-                    }
-                }
-
-                if (icoBytes is not null)
-                {
                     if (doRawIco)
                     {
                         attempted++;
-                        string outIco = Path.Combine(outDir, $"{baseName}.raw.ico");
+                        string outIco = Path.Combine(outDir, $"{name}.raw.ico");
                         try
                         {
-                            File.WriteAllBytes(outIco, icoBytes);
+                            File.WriteAllBytes(outIco, bytes);
                             succeeded++;
                             Log($"  Raw ICO: {Path.GetFileName(outIco)}");
                         }
@@ -490,15 +448,63 @@ public partial class MainWindow : Window
                     if (doRawPng)
                     {
                         attempted++;
-                        string outPng = Path.Combine(outDir, $"{baseName}.raw-best.png");
+                        string outPng = Path.Combine(outDir, $"{name}.raw-best.png");
                         try
                         {
-                            SaveBestPngFromIcoBytes(icoBytes, outPng);
+                            SaveBestPngFromIcoBytes(bytes, outPng);
                             succeeded++;
                             Log($"  Raw best PNG: {Path.GetFileName(outPng)}");
                             previewPath ??= outPng;
                         }
                         catch (Exception ex) { Log($"  Raw best PNG failed: {ex.Message}"); }
+                    }
+                }
+
+                void CountGroupFailure(string label)
+                {
+                    if (doRawIco)
+                    {
+                        attempted++;
+                        Log($"  Raw ICO failed: {label}");
+                    }
+
+                    if (doRawPng)
+                    {
+                        attempted++;
+                        Log($"  Raw best PNG failed: {label}");
+                    }
+                }
+
+                if (isPe && (doRawIco || doRawPng))
+                {
+                    try
+                    {
+                        foreach (var icon in WindowsIconExtractor.ExtractRawIconsFromPE(path))
+                        {
+                            if (icon.Bytes is null)
+                            {
+                                CountGroupFailure($"{icon.Id}: {icon.Error}");
+                            }
+                            else
+                            {
+                                ExportGroup(icon.Id, icon.Bytes);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        CountGroupFailure(ex.Message);
+                    }
+                }
+                else if (ext == ".ico" && (doRawIco || doRawPng))
+                {
+                    try
+                    {
+                        ExportGroup(null, File.ReadAllBytes(path));
+                    }
+                    catch (Exception ex)
+                    {
+                        CountGroupFailure(ex.Message);
                     }
                 }
 
@@ -616,6 +622,7 @@ internal static class WindowsIconExtractor
     private const int SIIGBF_ICONONLY = 0x0004;
     private const int SIIGBF_SCALEUP = 0x0100;
     private const uint LOAD_LIBRARY_AS_DATAFILE = 0x00000002;
+    private const uint LOAD_LIBRARY_AS_IMAGE_RESOURCE = 0x00000020;
 
     public static Avalonia.Media.Imaging.WriteableBitmap ExtractShellIcon(string path, int size, bool allowScaleup)
     {
@@ -720,41 +727,74 @@ internal static class WindowsIconExtractor
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
     struct GRPICONDIRENTRY { public byte bWidth, bHeight, bColorCount, bReserved; public ushort wPlanes, wBitCount; public uint dwBytesInRes; public ushort nId; }
 
-    public static byte[] ExtractRawIcoFromPE(string path)
+    internal readonly struct RawIcon
     {
-        IntPtr hMod = LoadLibraryEx(path, IntPtr.Zero, LOAD_LIBRARY_AS_DATAFILE);
+        public string Id { get; }
+        public byte[]? Bytes { get; }
+        public string? Error { get; }
+
+        public RawIcon(string id, byte[]? bytes, string? error)
+        {
+            Id = id;
+            Bytes = bytes;
+            Error = error;
+        }
+    }
+
+    public static List<RawIcon> ExtractRawIconsFromPE(string path)
+    {
+        IntPtr hMod = LoadLibraryEx(path, IntPtr.Zero, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
         if (hMod == IntPtr.Zero) throw new Exception("Failed to load library.");
 
         try
         {
-            IntPtr bestGroupRes = IntPtr.Zero;
-            uint bestGroupSize = 0;
-            long bestScore = -1;
+            var icons = new List<RawIcon>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             EnumResourceNames(hMod, (IntPtr)14, (hModule, lpszType, lpszName, lParam) =>
             {
+                string id = UniqueToken(ResourceName(lpszName), seen);
                 IntPtr hResInfo = FindResource(hModule, lpszName, (IntPtr)14);
-                if (hResInfo != IntPtr.Zero)
+                if (hResInfo == IntPtr.Zero)
                 {
-                    IntPtr hResData = LoadResource(hModule, hResInfo);
-                    if (hResData != IntPtr.Zero)
-                    {
-                        IntPtr pData = LockResource(hResData);
-                        uint size = SizeofResource(hModule, hResInfo);
-                        long score = EvaluateIconGroup(pData, size);
-                        if (score > bestScore)
-                        {
-                            bestScore = score;
-                            bestGroupRes = pData;
-                            bestGroupSize = size;
-                        }
-                    }
+                    icons.Add(new RawIcon(id, null, "Icon group could not be opened."));
+                    return true;
                 }
+
+                IntPtr hResData = LoadResource(hModule, hResInfo);
+                if (hResData == IntPtr.Zero)
+                {
+                    icons.Add(new RawIcon(id, null, "Icon group could not be loaded."));
+                    return true;
+                }
+
+                IntPtr pData = LockResource(hResData);
+                uint size = SizeofResource(hModule, hResInfo);
+                try
+                {
+                    icons.Add(new RawIcon(id, BuildIcoFromGroup(hModule, pData, size), null));
+                }
+                catch (Exception ex)
+                {
+                    icons.Add(new RawIcon(id, null, ex.Message));
+                }
+
                 return true;
             }, IntPtr.Zero);
 
-            if (bestGroupRes == IntPtr.Zero) throw new Exception("No icon groups found.");
-            return BuildIcoFromGroup(hMod, bestGroupRes, bestGroupSize);
+            if (icons.Count == 0) throw new Exception("No icon groups found.");
+
+            icons.Sort(static (a, b) =>
+            {
+                bool aNum = int.TryParse(a.Id, out int aId);
+                bool bNum = int.TryParse(b.Id, out int bId);
+                if (aNum && bNum) return aId.CompareTo(bId);
+                if (aNum) return -1;
+                if (bNum) return 1;
+                return string.Compare(a.Id, b.Id, StringComparison.OrdinalIgnoreCase);
+            });
+
+            return icons;
         }
         finally
         {
@@ -762,27 +802,33 @@ internal static class WindowsIconExtractor
         }
     }
 
-    private static unsafe long EvaluateIconGroup(IntPtr pData, uint resourceSize)
+    private static string ResourceName(IntPtr name)
     {
-        uint headerSize = (uint)sizeof(GRPICONDIR);
-        if (pData == IntPtr.Zero || resourceSize < headerSize) return -1;
-
-        GRPICONDIR* header = (GRPICONDIR*)pData;
-        if (header->idReserved != 0 || header->idType != 1) return -1;
-
-        ulong entriesSize = (ulong)sizeof(GRPICONDIRENTRY) * header->idCount;
-        if (header->idCount == 0 || (ulong)resourceSize < headerSize + entriesSize) return -1;
-
-        GRPICONDIRENTRY* entries = (GRPICONDIRENTRY*)(pData + sizeof(GRPICONDIR));
-        long bestScore = 0;
-        for (int i = 0; i < header->idCount; i++)
+        if ((ulong)name.ToInt64() >> 16 == 0)
         {
-            int w = entries[i].bWidth == 0 ? 256 : entries[i].bWidth;
-            int h = entries[i].bHeight == 0 ? 256 : entries[i].bHeight;
-            long score = (w * h) + entries[i].wBitCount + entries[i].dwBytesInRes;
-            if (score > bestScore) bestScore = score;
+            return ((ushort)name.ToInt64()).ToString();
         }
-        return bestScore;
+
+        return Marshal.PtrToStringUni(name) ?? "unnamed";
+    }
+
+    private static string UniqueToken(string value, HashSet<string> seen)
+    {
+        foreach (char c in Path.GetInvalidFileNameChars())
+        {
+            value = value.Replace(c, '_');
+        }
+
+        if (value.Length == 0) value = "unnamed";
+
+        string unique = value;
+        int n = 2;
+        while (!seen.Add(unique))
+        {
+            unique = value + "_" + n++;
+        }
+
+        return unique;
     }
 
     private static unsafe byte[] BuildIcoFromGroup(IntPtr hMod, IntPtr pGroupData, uint groupSize)
